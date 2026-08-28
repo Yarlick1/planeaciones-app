@@ -1,0 +1,45 @@
+planeaciones-app/
+├─ public/
+│  └─ icons/
+├─ src/
+│  ├─ app/
+│  │  ├─ App.jsx
+│  │  └─ routes.jsx
+│  ├─ assets/
+│  ├─ components/
+│  │  ├─ common/
+│  │  ├─ forms/
+│  │  ├─ layout/
+│  │  └─ ui/
+│  ├─ features/
+│  │  ├─ auth/
+│  │  │  ├─ components/
+│  │  │  ├─ hooks/
+│  │  │  └─ services/
+│  │  ├─ profile/
+│  │  │  ├─ components/
+│  │  │  ├─ schemas/
+│  │  │  └─ services/
+│  │  ├─ planners/
+│  │  │  ├─ components/
+│  │  │  ├─ pages/
+│  │  │  ├─ schemas/
+│  │  │  └─ services/
+│  │  └─ exports/
+│  │     ├─ pdf/
+│  │     ├─ word/
+│  │     └─ services/
+│  ├─ hooks/
+│  ├─ lib/
+│  │  ├─ supabaseClient.js
+│  │  └─ utils.js
+│  ├─ styles/
+│  │  └─ index.css
+│  ├─ main.jsx
+│  └─ router.jsx
+├─ .env.example
+├─ .env.local
+├─ index.html
+├─ package.json
+├─ vite.config.js
+└─ pnpm-lock.yaml

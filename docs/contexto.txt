@@ -1,0 +1,420 @@
+## Entrada Principal
+-src/App.jsx
+Es el componente raíz de la aplicación. Envuelve toda la app con AutoProvider, para que cualquier componente pueda saber si hay usuario autenticado, y renderiza AppRoutes, odnde vive la navegación
+
+## Rutas
+-src/app/routes.jsx
+Define las rutas principales
+    /auth: pantalla de login/registro.
+    /dashboard: vista inicial de planeaciones.
+    /perfil: formulario del perfil docente.
+    - Protege las rutas internas usando ProtectedRoute
+    -Si alguien entra sin sesión, lo manda a /auth
+
+
+## Autenticación
+-src/features/auth/hooks/AuthProvider.jsx
+    Mantiene el estado global de autenticación:
+        -Lee la sesión actual de supabase
+        -Escucha cambios de login/logout
+        -Guarda session, user y loading
+        -Es el "cerebro" de la sesión
+-src features/auth/hooks/authContext.js
+    Crea el contexto de React para compartir la sesión en toda la app
+-src/features/auth/hooks/useAuth.js
+    Es un hook cómodo para consumir la sesión: const {user, session, loading } = useAuth()
+    Así evitamos pasar datos manuales entre componentes
+-src/features/auth/services/authService.js
+    Centraliza las acciones de Supabase Auth:
+        signInWithEmail
+        signUpWithEmail
+        signOut
+    Esto evita poner lógica de Supabase directamente dentro de los componentes
+-src/features/auth/pages/AuthPage.jsx
+    Pantalla de inicio de sesión y registro
+    Usa:
+        -react-hook-form para manejar el formulario
+        -zod para validar correo y contraseña
+        -Supabase Auth para registrar o iniciar sesión
+
+## Rutas Protegidas
+-src/components/common/ProtectedRoute.jsx
+    Verifica si existe sesión activa
+        -Si está cargando, muestra mensaje
+        -Si no hay sesión, redirige a /auth
+        -Si hay sesión, permite entrar a la ruta solicitada.
+
+## Layout
+-src/components/layout/AppLayout.jsx
+    Define la estructura visual princpal despúes del login:
+        -Sliderbar en escritorio.
+        -Header responsive en móvil
+        -Navegación a Planeaciones y Perfil docente.
+        -Botón para cerrar sesión.
+        -Renderiza las páginas internas con <Outlet />
+
+## Perfil Docente
+-src/features/profile/schemas/profileSchema.js
+    Define las reglas de validación del perfil:
+        -Nombre obligatorio.
+        -Institución obligatoria.
+        -Al menos una materia.
+        -Al menos un grado/grado.
+        Se usa con Zod dentro del formulario.
+-src/features/profile/services/profileService.js
+    Centraliza la comunicación con Supabase para el perfil.
+    Hace dos cosas principales:
+        getTeacherProfile(userId): carga perfil, materias y grupos.
+        saveTeacherProfile(userId, values): guarda perfil, materias y grupos.
+    También sincroniza lista: agrega nuevos registros y elimina los que el docente quitó del formulario.
+    Pantalla de perfil del docente
+    Permite editar: 
+        -Nombre completo
+        -Institución
+        -Materias 
+        -Grados y grupos
+    Usa campos dinámicos para agregar/eliminar materiales y grupos,
+
+## Dashboard 
+-src/features/planners/pages/DashboardPage.jsx
+    Es la primera versión del panel de planeaciónes
+    Por ahora muestra:
+        -Encabezado del módulo
+        -Botón "Nueva planeación"
+        -Estado vacío
+        -Link para completar perfil
+    En la siguiente fase aquí conectaremos el CRUD real de planeaciones.
+
+## Utilidades
+-src/lib/utils.js
+    Contiene la función cn, que combina clases de Tailwind de forma limpia usando clsx y tailwind-merge
+    Ejemplo:
+        cn('text-stone-600', isActive && 'text-emerald-800')
+
+## Estilos Globales
+-src/style/index.css
+    Carga Tailwind v4
+
+
+## Formulario de Planeación
+-src\features\planners\components\PlannerForm.jsx
+    Es el formulario principal para crear o editar una planeación 
+    Hace esto:
+        - Usa react-hook-form para manejar el estado del formulario.
+        - Usa zodResolver(plannerSchema) para validar los campos.
+        - Muestra los datos generales de la planeación.
+        - Carga materias y grupos desde el perfil docente.
+        - Permite seleccionar varios ejes articuladores.
+        - Permite agregar/eliminar múltiples secuencias didácticas.
+        - Cambia el texto del botón según sea creación o edición.
+    Es un componente reutilizable: sirve tanto para nueva planeación como para editar una existente.
+
+## Página Crear/Editar
+-src\features\planners\pages\PlannerFormPage.jsx
+    Es la página que envuelve al formulario.
+    Hace esto:
+    - Detecta si estás creando o editando usando el parámetro id de la URL.
+    - Carga las materias y grupos del perfil docente.
+    - Si estás editando, carga la planeación existente.
+    - Convierte los datos de Supabase al formato que espera el formulario.
+    - Al guardar:
+    - Si es nueva, llama a createPlanner.
+    - Si es edición, llama a updatePlanner.
+    - Redirige al dashboard cuando guarda correctamente.
+    También valida que el usuario tenga materias y grupos antes de permitir crear planeaciones.
+
+## Esquema de validación
+-src\features\planners\schemas\plannerSchema.js
+    Valida:
+    - Fechas generales obligatorias.
+    - Fecha final mayor o igual a fecha inicial.
+    - Materia obligatoria.
+    - Grupo obligatorio.
+    - Contenido obligatorio.
+    - PDA obligatorio.
+    - Propósito obligatorio.
+    - Al menos una secuencia didáctica.
+    - Cada secuencia debe tener:
+    - Fechas.
+    - Inicio.
+    - Desarrollo.
+    - Cierre.
+    - Las fechas de cada secuencia deben estar dentro del rango general de la planeación.
+    También exporta plannerDefaultValues, que son los valores iniciales del formulario.
+
+## Servicio de Planeaciones
+-src\features\planners\services\plannerService.js
+    Centraliza toda la comunicación con Supabase para planeaciones.
+    Incluye:
+    - listPlanners(userId): obtiene las planeaciones del docente.
+    - getPlannerById(id): obtiene una planeación con sus secuencias.
+    - createPlanner(userId, values, catalogs): crea una planeación y sus secuencias.
+    - updatePlanner(id, userId, values, catalogs): actualiza la planeación y reemplaza sus secuencias.
+    - deletePlanner(id): elimina una planeación.
+    También tiene funciones internas para transformar los datos del formulario al formato de la base de datos.
+
+## Dashboard Actualizado
+-src\features\planners\pages\DashboardPage.jsx
+    Antes era una pantalla vacía. Ahora ya funciona como listado.
+    Hace esto:
+    - Carga las planeaciones del usuario autenticado.
+    - Muestra estado de carga.
+    - Muestra mensaje si no hay planeaciones.
+    - Muestra tabla con:
+    - Materia.
+    - Grupo.
+    - Periodo.
+    - Contenido.
+    - Acciones.
+    - Permite editar una planeación.
+    - Permite eliminar una planeación.
+    - Muestra botón de exportar, pero deshabilitado por ahora.
+
+## Ruta Actualizadas
+-src\app\routes.jsx
+    Se agregaron dos rutas nuevas:
+        <Route path="planeaciones/nueva" element={<PlannerFormPage />} />
+        <Route path="planeaciones/:id/editar" element={<PlannerFormPage />} />
+    
+    Con eso la app ya puede navegar entre:
+    - Dashboard.
+    - Crear planeación.
+    - Editar planeación.
+    - Perfil docente.
+
+-----------------
+
+Listo, implementé la fase de exportación a Word y PDF.
+Cambios realizados:
+- [exportFormatters.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/exports/services/exportFormatters.js)
+  - Agrega utilidades compartidas para exportación.
+  - Ordena secuencias por sequence_order.
+  - Genera nombres de archivo limpios.
+  - Normaliza textos vacíos como No especificado.
+  - Convierte ejes articuladores a texto.
+- [wordExportService.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/exports/services/wordExportService.js)
+  - Genera archivo .docx usando docx.
+  - Crea documento con título, datos del docente, datos generales y secuencias.
+  - Usa tablas con bordes y encabezados sombreados.
+  - Descarga automáticamente el archivo.
+  - Carga docx de forma dinámica para no inflar la carga inicial.
+- [pdfExportService.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/exports/services/pdfExportService.js)
+  - Genera archivo .pdf usando html2pdf.js.
+  - Construye una plantilla HTML institucional con tablas.
+  - Incluye perfil docente, datos generales y secuencias.
+  - Escapa contenido HTML para evitar problemas con texto ingresado por el usuario.
+  - Carga html2pdf.js de forma dinámica.
+- [DashboardPage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/pages/DashboardPage.jsx)
+  - Reemplacé el botón de exportación deshabilitado.
+  - Agregué botón para exportar Word.
+  - Agregué botón para exportar PDF.
+  - Al exportar, carga la planeación completa y el perfil docente desde Supabase.
+  - Bloquea temporalmente las acciones mientras se genera el archivo.
+
+-----------------------
+Fase siguiente: Pulido UX + Vista Detalle/Preview de Planeación
+implementé la fase de pulido UX + vista detalle/preview.
+Cambios por archivo:
+- [PlannerDetailPage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/pages/PlannerDetailPage.jsx)
+  - Nueva página para ver una planeación completa sin entrar al modo edición.
+  - Muestra encabezado institucional, datos generales y secuencias didácticas.
+  - Agrega acciones para editar, exportar Word y exportar PDF desde la vista previa.
+- [routes.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/app/routes.jsx)
+  - Agregué la ruta:/planeaciones/:id
+  - Esa ruta abre la nueva vista detalle.
+- [DashboardPage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/pages/DashboardPage.jsx)
+  - Agregué botón para ver detalle de cada planeación.
+  - Mejoré el formato visual de fechas.
+  - Reemplacé window.confirm por un modal propio.
+  - La eliminación ahora se confirma con una interfaz más integrada a la app.
+- [ConfirmDialog.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/common/ConfirmDialog.jsx)
+  - Nuevo componente reutilizable para confirmaciones.
+  - Por ahora se usa al eliminar planeaciones.
+- [dateFormatters.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/lib/dateFormatters.js)
+  - Nueva utilidad para mostrar fechas en formato más legible.
+  - Ejemplo: 2026-08-28 pasa a 28 ago 2026.
+
+---------------------------
+siguiente fase la haré como PWA básica: que la plataforma tenga manifest, service worker, registro en React y una experiencia inicial offline. Esto encaja con el requisito original de “plataforma web progresiva” y no necesita instalar dependencias nuevas.
+
+La idea: preparar la app para comportarse como una aplicación progresiva en producción, con manifest, service worker, aviso de conexión y opción de instalación cuando el navegador la permita.
+Cambios realizados:
+- [pwaInstall.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/lib/pwaInstall.js)
+  - Guarda el evento beforeinstallprompt.
+  - Permite disparar la instalación manualmente desde la UI.
+  - Limpia el estado cuando la app ya fue instalada.
+- [usePwaInstall.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/hooks/usePwaInstall.js)
+  - Hook para saber si la app se puede instalar.
+  - Expone canInstall e install.
+- [useOnlineStatus.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/hooks/useOnlineStatus.js)
+  - Detecta si el navegador está online u offline.
+- [NetworkStatusBanner.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/common/NetworkStatusBanner.jsx)
+  - Muestra una alerta cuando el usuario pierde conexión.
+  - Avisa que algunas acciones pueden requerir internet.
+- [AppLayout.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/layout/AppLayout.jsx)
+  - Integré el botón “Instalar app” cuando el navegador lo permita.
+  - Agregué el aviso offline dentro del layout principal.
+- [service-worker.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/public/service-worker.js)
+  - Mejoré la estrategia de caché.
+  - Cachea navegación y assets del mismo origen.
+  - Evita cachear llamadas externas como Supabase.
+  - Usa /index.html o /offline.html cuando no hay conexión.
+- [registerServiceWorker.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/lib/registerServiceWorker.js)
+  - Ahora solo registra el service worker en producción.
+  - Esto evita problemas de caché durante desarrollo local.
+
+-----------------------------------
+  siguiente fase recomendada sería robustez de datos en Supabase:
+
+  Antes, al crear/editar una planeación, el frontend hacía varias operaciones separadas: guardar planners, borrar/insertar didactic_sequences, etc. Ahora esas operaciones se ejecutan dentro de funciones SQL en Supabase, en una sola transacción. Si falla una parte, no queda una planeación guardada a medias.
+Cambios realizados:
+- [docs/supabase-rpc-planners.sql](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/docs/supabase-rpc-planners.sql)
+  - Agregué el script SQL con dos funciones:
+    - create_planner_with_sequences
+    - update_planner_with_sequences
+  - Ambas usan auth.uid() para identificar al usuario autenticado.
+  - Validan que la materia y el grupo pertenezcan al usuario.
+  - Guardan la planeación y sus secuencias de forma atómica.
+  - Incluyen permisos grant execute para usuarios autenticados.
+- [plannerService.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/services/plannerService.js)
+  - Cambié createPlanner para usar:supabase.rpc('create_planner_with_sequences')
+  - Cambié updatePlanner para usar:supabase.rpc('update_planner_with_sequences')
+  - El frontend ya no manda user_id, subject_name ni group_label.
+  - Supabase calcula esos datos de forma segura desde la sesión y los catálogos del usuario.
+Importante: para que crear/editar vuelva a funcionar, debes ejecutar el SQL de [supabase-rpc-planners.sql](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/docs/supabase-rpc-planners.sql) en el SQL Editor de Supabase.
+
+------------------------
+La siguiente fase recomendada sería mejora de experiencia y validaciones de perfil/flujo inicial: redirigir automáticamente al perfil si el docente aún no tiene datos completos, mostrar avisos más claros cuando faltan materias/grupos y evitar que llegue al formulario de planeación sin configuración previa.
+
+Esta fase fue de flujo inicial y validación de perfil docente completo.
+La idea: que ningún docente pueda entrar al dashboard, crear planeaciones o editar/exportar si antes no completó su configuración básica: nombre, institución, materias y grupos.
+Cambios realizados:
+- [profileService.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/profile/services/profileService.js)
+  - Agregué isTeacherProfileComplete.
+  - Esta función valida si el perfil tiene:
+    - Nombre completo.
+    - Institución.
+    - Al menos una materia.
+    - Al menos un grado/grupo.
+- [ProfileCompletionGuard.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/profile/components/ProfileCompletionGuard.jsx)
+  - Nuevo guard de rutas.
+  - Revisa el perfil del usuario autenticado.
+  - Si el perfil está incompleto, redirige a /perfil.
+  - Deja libre /perfil para que el usuario pueda completar sus datos.
+- [routes.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/app/routes.jsx)
+  - Envolví estas rutas con ProfileCompletionGuard:
+    - /dashboard
+    - /planeaciones/nueva
+    - /planeaciones/:id
+    - /planeaciones/:id/editar
+  - Ahora esas pantallas requieren perfil completo.
+- [ProfilePage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/profile/pages/ProfilePage.jsx)
+  - Agregué un aviso cuando el usuario llega al perfil porque intentó entrar a una sección protegida sin completar datos.
+  - Después de guardar correctamente, muestra un acceso directo para ir al dashboard.
+  - Limpia el estado de redirección para que el aviso no quede pegado después de guardar.
+
+  -----------------------------------
+  Esta fase fue de componentes UI reutilizables.
+La idea fue reducir repetición de clases Tailwind y dejar una base más mantenible para futuros formularios, modales y pantallas.
+Cambios realizados:
+- [Button.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/ui/Button.jsx)
+  - Nuevo botón reutilizable.
+  - Soporta variantes: primary, secondary, danger, ghost.
+  - Soporta tamaños: sm, md, icon.
+- [FormField.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/ui/FormField.jsx)
+  - Nuevo wrapper para campos de formulario.
+  - Renderiza label, contenido y error de validación.
+- [Input.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/ui/Input.jsx)
+  - Input base con estilos consistentes.
+- [Textarea.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/ui/Textarea.jsx)
+  - Textarea base con estilos consistentes.
+- [Select.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/ui/Select.jsx)
+  - Select base para listas desplegables.
+- [Alert.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/ui/Alert.jsx)
+  - Mensajes reutilizables para error, éxito y advertencia.
+- [PlannerForm.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/components/PlannerForm.jsx)
+  - Reemplacé inputs, selects, textareas, botones y mensajes por componentes UI.
+  - Eliminé clases repetidas internas como inputClass, textareaClass y el componente local Field.
+- [ProfilePage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/profile/pages/ProfilePage.jsx)
+  - Reemplacé campos, botones y alertas por los nuevos componentes reutilizables.
+  - La funcionalidad se mantiene igual, pero el código quedó más limpio.
+
+
+--------------------------------------------------------
+
+Esta fase fue de optimización de bundle y carga diferida.
+La idea fue que la app no cargue todas las páginas ni módulos pesados desde el inicio. Ahora cada pantalla se descarga cuando realmente se visita, y las exportaciones se cargan solo cuando se usan.
+Cambios realizados:
+- [PageLoader.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/components/common/PageLoader.jsx)
+  - Nuevo componente de carga reutilizable.
+  - Se muestra mientras React descarga una pantalla diferida.
+- [routes.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/app/routes.jsx)
+  - Cambié las páginas principales a React.lazy.
+  - Agregué Suspense para mostrar PageLoader.
+  - Ahora se cargan bajo demanda:
+    - AuthPage
+    - ProfilePage
+    - DashboardPage
+    - PlannerFormPage
+    - PlannerDetailPage
+- [DashboardPage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/pages/DashboardPage.jsx)
+  - Quité imports directos de exportación.
+  - Word y PDF ahora se importan dinámicamente al hacer clic.
+- [PlannerDetailPage.jsx](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/pages/PlannerDetailPage.jsx)
+  - Igual que dashboard: Word/PDF se cargan solo al exportar.
+
+----------------------------------------------------------------------
+
+Esta fase fue de testing básico.
+Cambios realizados:
+- [package.json](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/package.json)
+  - Instalé vitest.
+  - Agregué el script:"test": "vitest run"
+- [plannerSchema.test.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/planners/schemas/plannerSchema.test.js)
+  - Prueba que una planeación válida pase.
+  - Prueba que falle si el rango general de fechas es inválido.
+  - Prueba que falle si una secuencia queda fuera del rango general.
+- [profileService.test.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/profile/services/profileService.test.js)
+  - Prueba isTeacherProfileComplete.
+  - Valida casos de perfil completo e incompleto.
+- [exportFormatters.test.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/features/exports/services/exportFormatters.test.js)
+  - Prueba ordenamiento de secuencias.
+  - Prueba generación de nombres de archivo.
+  - Prueba normalización de textos vacíos y ejes articuladores.
+- [dateFormatters.test.js](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/src/lib/dateFormatters.test.js)
+  - Prueba formato de fecha en español.
+  - Prueba formato de rango de fechas.
+  - Prueba manejo de fechas vacías.
+
+
+  ----------------------------------------------------
+
+  Esta fase fue de preparación para despliegue con GitHub + Vercel.
+Recomendación: usar Vercel como hosting y GitHub como repositorio fuente. GitHub Pages puede servir para sitios Vite estáticos, pero para esta app conviene Vercel porque maneja mejor React Router, variables de entorno, previews por rama y despliegue automático desde main. Me basé en la guía oficial de Vite para despliegue estático y en la documentación de Vercel sobre Git deployments, rewrites y variables de entorno: Vite deploy, Vercel rewrites, Vercel env vars.
+Cambios realizados:
+- [vercel.json](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/vercel.json)
+  - Configura instalación con pnpm install --frozen-lockfile.
+  - Configura build con pnpm run build.
+  - Publica la carpeta dist.
+  - Agrega rewrite a /index.html para que funcionen rutas como /planeaciones/:id al recargar.
+  - Evita caché agresivo sobre service-worker.js.
+- [netlify.toml](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/netlify.toml)
+  - Dejé configuración alternativa para Netlify.
+  - Incluye build, publish directory y redirect SPA.
+- [docs/deployment.md](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/docs/deployment.md)
+  - Guía paso a paso para:
+    - Crear repo en GitHub.
+    - Subir rama main.
+    - Importar proyecto en Vercel.
+    - Configurar variables de entorno.
+    - Configurar URLs de Supabase Auth.
+    - Revisar checklist antes de publicar.
+- [README.md](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/README.md)
+  - Reemplacé el README genérico de Vite.
+  - Documenté stack, desarrollo local, verificación, Supabase y despliegue.
+- [package.json](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/package.json)
+  - Agregué:"check": "pnpm run lint && pnpm run test && pnpm run build"
+- [.gitignore](C:/Users/yael.garay/Documents/PERSONAL/Proyectos-web/planeaciones-app-codex/planeaciones-app/.gitignore)
+  - Protegí .env y .env.*.
+  - Dejé permitido .env.example.
+También inicialicé Git localmente en rama main dentro de planeaciones-app.
