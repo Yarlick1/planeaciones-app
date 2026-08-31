@@ -1,4 +1,4 @@
-import { Edit3, Eye, FilePlus2, FileText, FileType2, Trash2 } from 'lucide-react'
+import { Edit3, Eye, FilePlus2, FileText, FileType2, PencilLine, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
@@ -93,13 +93,22 @@ export function DashboardPage() {
             Aquí aparecerán las planeaciones guardadas, con acciones para editar, eliminar y exportar.
           </p>
         </div>
-        <Link
-          to="/planeaciones/nueva"
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"
-        >
-          <FilePlus2 size={17} />
-          Nueva planeación
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/planeaciones/asistente"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"
+          >
+            <Sparkles size={17} />
+            Crear con IA
+          </Link>
+          <Link
+            to="/planeaciones/nueva"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+          >
+            <PencilLine size={17} />
+            Manual
+          </Link>
+        </div>
       </div>
 
       {error && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -110,14 +119,23 @@ export function DashboardPage() {
         <div className="rounded-md border border-dashed border-stone-300 bg-white p-8 text-center">
           <h2 className="text-lg font-semibold text-stone-950">Aún no hay planeaciones</h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-stone-600">
-            Crea tu primera planeación usando las materias, grados y grupos guardados en tu perfil docente.
+            Crea tu primera planeación con apoyo del asistente IA o llena el formulario manualmente.
           </p>
-          <Link
-            to="/perfil"
-            className="mt-5 inline-flex rounded-md border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-100"
-          >
-            Revisar perfil
-          </Link>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Link
+              to="/planeaciones/asistente"
+              className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+            >
+              <FilePlus2 size={16} />
+              Crear con IA
+            </Link>
+            <Link
+              to="/perfil"
+              className="inline-flex rounded-md border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+            >
+              Revisar perfil
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="overflow-hidden rounded-md border border-stone-200 bg-white shadow-sm">

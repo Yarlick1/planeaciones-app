@@ -10,6 +10,7 @@ Plataforma web progresiva para crear, gestionar y exportar planeaciones didácti
 - React Hook Form + Zod
 - Exportación Word y PDF
 - PWA básica
+- Asistente IA para crear planeaciones nuevas
 
 ## Desarrollo local
 
@@ -48,6 +49,12 @@ docs/supabase-rpc-planners.sql
 ```
 
 Ese script agrega las funciones RPC transaccionales para crear y actualizar planeaciones con secuencias.
+
+Para activar IA real, revisa:
+
+```txt
+docs/ai-planner.md
+```
 
 ## Despliegue recomendado
 

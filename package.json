@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "check": "pnpm run lint && pnpm run test && pnpm run build"
+    "check": "pnpm run lint && pnpm run test && pnpm run build",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link --project-ref",
+    "functions:deploy:ai": "supabase functions deploy generate-planner-step"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -37,6 +40,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.4",
     "globals": "^17.11.0",
+    "supabase": "^2.116.0",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   }

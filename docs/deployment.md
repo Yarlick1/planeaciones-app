@@ -117,6 +117,8 @@ Revisa además:
 
 - SQL base aplicado en Supabase.
 - RPC aplicado desde `docs/supabase-rpc-planners.sql`.
+- Edge Function de IA desplegada si usarás asistente con OpenAI.
+- `OPENAI_API_KEY` configurada en Supabase Secrets si usarás IA real.
 - RLS activo en todas las tablas.
 - Variables de entorno configuradas en Vercel.
 - URLs de Supabase Auth actualizadas.

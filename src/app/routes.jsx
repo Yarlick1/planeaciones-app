@@ -9,6 +9,9 @@ const AuthPage = lazy(() => import('../features/auth/pages/AuthPage').then((modu
 const DashboardPage = lazy(() =>
   import('../features/planners/pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 )
+const AiPlannerWizardPage = lazy(() =>
+  import('../features/aiPlanner/pages/AiPlannerWizardPage').then((module) => ({ default: module.AiPlannerWizardPage })),
+)
 const PlannerDetailPage = lazy(() =>
   import('../features/planners/pages/PlannerDetailPage').then((module) => ({ default: module.PlannerDetailPage })),
 )
@@ -58,6 +61,14 @@ export function AppRoutes() {
               element={
                 <LazyPage>
                   <DashboardPage />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="planeaciones/asistente"
+              element={
+                <LazyPage>
+                  <AiPlannerWizardPage />
                 </LazyPage>
               }
             />
