@@ -418,3 +418,59 @@ Cambios realizados:
   - Protegí .env y .env.*.
   - Dejé permitido .env.example.
 También inicialicé Git localmente en rama main dentro de planeaciones-app.
+
+
+
+--------
+
+Fase: Asistente IA para creación guiada de planeaciones
+
+Iniciamos la implementación del Asistente IA para crear planeaciones nuevas.
+
+- Agregué una ruta nueva:
+  - /planeaciones/asistente
+- Desde el dashboard ahora hay dos formas de crear:
+  - Crear con IA
+  - Manual
+- El asistente IA ya tiene este flujo:
+  - Pide datos base: fecha inicio, fecha fin, materia, grupo, contenido y PDA.
+  - Genera 3 propuestas para:
+    - Problemática general.
+    - Finalidades del campo formativo.
+    - Propósito.
+    - Ejes articuladores.
+    - Perfil de egreso.
+    - Secuencia didáctica.
+  - El usuario puede elegir y editar propuestas.
+  - Puede agregar más secuencias.
+  - Al finalizar, guarda la planeación usando el mismo RPC actual.
+  - Después redirige a la vista detalle de la planeación creada.
+Archivos principales agregados:
+- [AiPlannerWizardPage.jsx](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\pages\\AiPlannerWizardPage.jsx)
+- [AiInitialContextForm.jsx](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\components\\AiInitialContextForm.jsx)
+- [SuggestionCards.jsx](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\components\\SuggestionCards.jsx)
+- [AxesSuggestionCards.jsx](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\components\\AxesSuggestionCards.jsx)
+- [SequenceSuggestionCards.jsx](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\components\\SequenceSuggestionCards.jsx)
+- [aiPlannerService.js](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\services\\aiPlannerService.js)
+- [aiPlannerSteps.js](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\config\\aiPlannerSteps.js)
+- [aiPlannerSchema.js](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\schemas\\aiPlannerSchema.js)
+También agregué la base para IA real en Supabase:
+- [supabase/functions/generate-planner-step/index.ts](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\supabase\\functions\\generate-planner-step\\index.ts)
+  - Edge Function preparada para llamar OpenAI Responses API.
+  - Usa OPENAI_API_KEY desde Supabase Secrets.
+  - Devuelve 3 sugerencias estructuradas.
+Documentación agregada:
+- [docs/ai-planner.md](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\docs\\ai-planner.md)
+
+
+
+------------------------------------------------------------
+Listo, continué con la fase de hardening del asistente IA y ya quedó desplegada la Edge Function actualizada en Supabase.
+Implementé esto:
+- [aiSuggestionValidators.js](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\services\\aiSuggestionValidators.js): nuevo validador para normalizar respuestas de IA según el tipo de paso: texto, ejes articuladores o secuencia didáctica.
+- [aiPlannerService.js](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\services\\aiPlannerService.js): ahora valida las sugerencias antes de usarlas y traduce errores técnicos a mensajes más claros, por ejemplo créditos agotados, API key inválida, modelo no disponible o Edge Function inaccesible.
+- [generate-planner-step/index.ts](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\supabase\\functions\\generate-planner-step\\index.ts): la Edge Function ahora usa un json_schema distinto por cada tipo de paso y además valida el JSON recibido antes de regresarlo al frontend.
+- [aiSuggestionValidators.test.js](C:\\Users\\yael.garay\\Documents\\PERSONAL\\Proyectos-web\\planeaciones-app-codex\\planeaciones-app\\src\\features\\aiPlanner\\services\\aiSuggestionValidators.test.js): agregué pruebas para asegurar que las respuestas correctas pasan y las secuencias incompletas se rechazan.
+
+
+--------------------------------------------------------------

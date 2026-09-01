@@ -22,6 +22,7 @@ export function AiInitialContextForm({ catalogs, onStart }) {
       groupId: '',
       content: '',
       pda: '',
+      generalProblem: '',
     },
   })
 
@@ -67,6 +68,10 @@ export function AiInitialContextForm({ catalogs, onStart }) {
 
           <FormField label="PDA" error={errors.pda?.message}>
             <Textarea rows={3} {...register('pda')} />
+          </FormField>
+
+          <FormField label="Problemática general" error={errors.generalProblem?.message}>
+            <Textarea rows={4} {...register('generalProblem')} />
           </FormField>
         </div>
       </section>

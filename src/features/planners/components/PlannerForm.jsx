@@ -7,17 +7,8 @@ import { FormField } from '../../../components/ui/FormField'
 import { Input } from '../../../components/ui/Input'
 import { Select } from '../../../components/ui/Select'
 import { Textarea } from '../../../components/ui/Textarea'
+import { availableAxes } from '../../aiPlanner/config/aiPlannerSteps'
 import { plannerDefaultValues, plannerSchema } from '../schemas/plannerSchema'
-
-const articulatingAxes = [
-  'Inclusión',
-  'Pensamiento crítico',
-  'Interculturalidad crítica',
-  'Igualdad de género',
-  'Vida saludable',
-  'Apropiación de las culturas',
-  'Artes y experiencias estéticas',
-]
 
 export function PlannerForm({ catalogs, defaultValues, formError, isEditing, onSubmit }) {
   const {
@@ -96,7 +87,7 @@ export function PlannerForm({ catalogs, defaultValues, formError, isEditing, onS
           <div>
             <span className="text-sm font-medium text-stone-700">Ejes articuladores</span>
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {articulatingAxes.map((axis) => (
+              {availableAxes.map((axis) => (
                 <label
                   key={axis}
                   className="flex min-h-10 items-center gap-2 rounded-md border border-stone-200 px-3 py-2 text-sm text-stone-700"

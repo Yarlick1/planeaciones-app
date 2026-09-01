@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient'
+import { normalizeAiSuggestions } from './aiSuggestionValidators'
 
 export async function generatePlannerStep({ context, step }) {
   try {
@@ -13,21 +14,18 @@ export async function generatePlannerStep({ context, step }) {
     if (error) {
       throw new Error(await getFunctionErrorMessage(error))
     }
-    if (!Array.isArray(data?.suggestions) || data.suggestions.length === 0) {
-      throw new Error('La IA no devolvió sugerencias válidas.')
-    }
 
     return {
       source: 'ai',
-      suggestions: data.suggestions.slice(0, 3),
+      suggestions: normalizeAiSuggestions(step, data?.suggestions),
     }
   } catch (error) {
     console.warn('No se pudo generar con la Edge Function de IA:', error)
 
     return {
       source: 'fallback',
-      reason: error.message || 'La Edge Function no respondió correctamente.',
-      suggestions: buildFallbackSuggestions(step, context),
+      reason: getFriendlyErrorMessage(error),
+      suggestions: normalizeAiSuggestions(step, buildFallbackSuggestions(step, context)),
     }
   }
 }
@@ -36,12 +34,67 @@ async function getFunctionErrorMessage(error) {
   try {
     const payload = await error.context?.json?.()
 
-    if (payload?.error) return payload.error
+    if (payload?.code || payload?.error) {
+      return JSON.stringify({
+        code: payload.code,
+        message: payload.error,
+      })
+    }
   } catch {
     // Supabase may return a non-JSON network error.
   }
 
   return error.message || 'La Edge Function no respondió correctamente.'
+}
+
+function getFriendlyErrorMessage(error) {
+  const message = error?.message || 'La Edge Function no respondio correctamente.'
+  const payload = parseErrorPayload(message)
+  const text = `${payload.code || ''} ${payload.message || message}`.toLowerCase()
+
+  if (text.includes('credit_balance_exhausted') || text.includes('insufficient_quota')) {
+    return 'La cuenta de OpenAI no tiene creditos disponibles o alcanzo su limite de uso.'
+  }
+
+  if (text.includes('invalid_api_key') || text.includes('incorrect api key')) {
+    return 'La API key de OpenAI configurada en Supabase no es valida.'
+  }
+
+  if (text.includes('model_not_found') || text.includes('does not exist') || text.includes('model')) {
+    return 'El modelo configurado para OpenAI no esta disponible para esta cuenta.'
+  }
+
+  if (text.includes('openai_api_key')) {
+    return 'Falta configurar OPENAI_API_KEY en los secrets de Supabase.'
+  }
+
+  if (text.includes('incomplete_openai_response') || text.includes('invalid_json_from_openai')) {
+    return 'OpenAI corto la respuesta antes de terminar. Genera nuevas opciones para recibir el JSON completo.'
+  }
+
+  if (text.includes('unterminated string') || text.includes('not valid json')) {
+    return 'La IA devolvio una respuesta incompleta. Genera nuevas opciones para intentarlo de nuevo.'
+  }
+
+  if (text.includes('failed to send a request') || text.includes('failed to fetch')) {
+    return 'No se pudo conectar con la Edge Function. Revisa que este desplegada y que las variables de entorno apunten al proyecto correcto.'
+  }
+
+  return payload.message || message
+}
+
+function parseErrorPayload(message) {
+  try {
+    const payload = JSON.parse(message)
+
+    if (payload && typeof payload === 'object') {
+      return payload
+    }
+  } catch {
+    // Non-JSON errors are expected for network/runtime failures.
+  }
+
+  return { message }
 }
 
 function buildFallbackSuggestions(step, context) {
@@ -59,11 +112,11 @@ function buildFallbackSuggestions(step, context) {
       },
       {
         title: 'Vida saludable y comunidad',
-        value: ['Vida saludable', 'Apropiación de las culturas'],
+        value: ['Vida Saludable', 'Equidad de Género'],
       },
       {
         title: 'Interculturalidad y expresión',
-        value: ['Interculturalidad crítica', 'Artes y experiencias estéticas'],
+        value: ['Interculturalidad crítica', 'Artes y expresión artística'],
       },
     ]
   }
