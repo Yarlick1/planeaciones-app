@@ -1,8 +1,10 @@
-import { ArrowLeft, CheckCircle2, RefreshCw, Sparkles } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react'
+import gsap from 'gsap'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Alert } from '../../../components/ui/Alert'
 import { Button } from '../../../components/ui/Button'
+import { useGsapReveal } from '../../../hooks/useGsapReveal'
 import { useAuth } from '../../auth/hooks/useAuth'
 import { createPlanner } from '../../planners/services/plannerService'
 import { getTeacherProfile } from '../../profile/services/profileService'
@@ -14,6 +16,7 @@ import {
   sequenceStep,
 } from '../config/aiPlannerSteps'
 import { AiInitialContextForm } from '../components/AiInitialContextForm'
+import { AiThinkingState } from '../components/AiThinkingState'
 import { SequenceSuggestionCards } from '../components/SequenceSuggestionCards'
 import { SuggestionCards } from '../components/SuggestionCards'
 import { generatePlannerStep } from '../services/aiPlannerService'
@@ -31,6 +34,9 @@ export function AiPlannerWizardPage() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const generatingStepRef = useRef(false)
+  const ambienceRef = useRef(null)
+  const pageRef = useGsapReveal({ selector: '[data-ai-reveal]', stagger: 0.07, y: 22 })
 
   const currentStep = allWizardSteps[currentStepIndex]
 
@@ -65,9 +71,28 @@ export function AiPlannerWizardPage() {
     }
   }, [user.id])
 
+  useLayoutEffect(() => {
+    if (!ambienceRef.current) return undefined
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
+
+    const context = gsap.context(() => {
+      gsap.to('[data-ai-ambience]', {
+        backgroundPosition: '100% 50%',
+        duration: 9,
+        ease: 'sine.inOut',
+        repeat: -1,
+        yoyo: true,
+      })
+    }, ambienceRef)
+
+    return () => context.revert()
+  }, [])
+
   async function loadSuggestions(step = currentStep, context = aiContext) {
     if (!step || !context) return
+    if (generatingStepRef.current) return
 
+    generatingStepRef.current = true
     setError('')
     setNotice('')
     setLoadingSuggestions(true)
@@ -82,6 +107,7 @@ export function AiPlannerWizardPage() {
     } catch (suggestionError) {
       setError(suggestionError.message || 'No pudimos generar propuestas.')
     } finally {
+      generatingStepRef.current = false
       setLoadingSuggestions(false)
     }
   }
@@ -147,82 +173,105 @@ export function AiPlannerWizardPage() {
   }
 
   return (
-    <section className="space-y-6">
-      <div>
-        <Link to="/dashboard" className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-stone-600">
-          <ArrowLeft size={16} />
-          Volver al dashboard
-        </Link>
-        <p className="text-sm font-medium text-emerald-800">Nueva planeación</p>
-        <h1 className="mt-1 text-3xl font-semibold text-stone-950">Asistente IA para planeación didáctica</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
-          Responde lo básico, revisa propuestas por campo y conserva siempre el control: puedes editar antes de usar
-          cada sugerencia.
-        </p>
-      </div>
+    <section
+      ref={(node) => {
+        pageRef.current = node
+        ambienceRef.current = node
+      }}
+      className="relative min-h-svh overflow-hidden bg-stone-950 px-4 py-5 text-white sm:px-6 lg:px-8 lg:py-8"
+    >
+      <div
+        data-ai-ambience
+        className="pointer-events-none absolute inset-0 bg-[length:180%_180%] bg-[linear-gradient(135deg,rgba(6,182,212,0.24),transparent_34%,rgba(16,185,129,0.18)_67%,transparent),radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_38%)]"
+      />
 
-      {error && <Alert>{error}</Alert>}
-      {notice && <Alert variant="warning">{notice}</Alert>}
-
-      {!baseValues ? (
-        <AiInitialContextForm catalogs={catalogs} onStart={handleStart} />
-      ) : (
-        <div className="space-y-6">
-          <WizardProgress currentStepIndex={currentStepIndex} />
-
-          <section className="rounded-md border border-stone-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-emerald-800">
-                  Paso {currentStepIndex + 1} de {allWizardSteps.length}
-                </p>
-                <h2 className="mt-1 text-xl font-semibold text-stone-950">{currentStep.label}</h2>
-                <p className="mt-2 text-sm leading-6 text-stone-600">{currentStep.description}</p>
-              </div>
-              <Sparkles className="shrink-0 text-emerald-700" size={24} />
-            </div>
-          </section>
-
-          {currentStep.id === 'formativeFieldPurposes' ? (
-            <FormativePurposesStep
-              loading={loadingSuggestions}
-              onGenerate={() => loadSuggestions(currentStep)}
-              onSelect={handleSelect}
-              suggestions={suggestions}
-            />
-          ) : currentStep.id === 'articulatingAxes' ? (
-            <ArticulatingAxesStep
-              loading={loadingSuggestions}
-              onGenerate={() => loadSuggestions(currentStep)}
-              onSelect={handleSelect}
-              suggestions={suggestions}
-            />
-          ) : currentStep.id === 'graduationProfile' ? (
-            <GraduationProfileStep context={aiContext} onSelect={handleSelect} />
-          ) : suggestions.length === 0 && currentStep.id === sequenceStep.id && plannerDraft.sequences.length > 0 ? (
-            <SequenceDecision
-              count={plannerDraft.sequences.length}
-              onAdd={() => loadSuggestions(sequenceStep)}
-              onFinish={handleFinish}
-              saving={saving}
-            />
-          ) : currentStep.id === sequenceStep.id ? (
-            <SequenceSuggestionCards
-              loading={loadingSuggestions}
-              onRegenerate={() => loadSuggestions(currentStep)}
-              onSelect={handleSelect}
-              suggestions={suggestions}
-            />
-          ) : (
-            <SuggestionCards
-              loading={loadingSuggestions}
-              onRegenerate={() => loadSuggestions(currentStep)}
-              onSelect={handleSelect}
-              suggestions={suggestions}
-            />
-          )}
+      <div className="relative mx-auto max-w-7xl space-y-5 sm:space-y-6">
+        <div data-ai-reveal>
+          <Link
+            to="/dashboard"
+            className="mb-4 inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-cyan-100/80 backdrop-blur transition hover:-translate-y-0.5 hover:border-cyan-200/50 hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            Volver al dashboard
+          </Link>
+          <p className="text-sm font-medium text-cyan-200">Modo potenciado</p>
+          <h1 className="mt-1 max-w-4xl text-3xl font-semibold text-white sm:text-4xl">Asistente IA para planeación didáctica</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-cyan-50/70">
+            Responde lo básico, revisa propuestas por campo y conserva siempre el control: puedes editar antes de usar
+            cada sugerencia.
+          </p>
         </div>
-      )}
+
+        {error && <Alert>{error}</Alert>}
+        {notice && <Alert variant="warning">{notice}</Alert>}
+
+        {!baseValues ? (
+          <div data-ai-reveal>
+            <AiInitialContextForm catalogs={catalogs} onStart={handleStart} />
+          </div>
+        ) : (
+          <div data-ai-reveal className="space-y-5">
+            <WizardProgress currentStepIndex={currentStepIndex} />
+
+            <section className="relative overflow-hidden rounded-md border border-cyan-300/25 bg-white/95 p-4 text-stone-950 shadow-2xl shadow-cyan-950/30 sm:p-5">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300 to-transparent" />
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">
+                    Paso {currentStepIndex + 1} de {allWizardSteps.length}
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-stone-950">{currentStep.label}</h2>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">{currentStep.description}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 rounded-md border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800">
+                  <Sparkles size={16} />
+                  Asistencia activa
+                </div>
+              </div>
+            </section>
+
+            {currentStep.id === 'formativeFieldPurposes' ? (
+              <FormativePurposesStep
+                loading={loadingSuggestions}
+                onGenerate={() => loadSuggestions(currentStep)}
+                onSelect={handleSelect}
+                suggestions={suggestions}
+              />
+            ) : currentStep.id === 'articulatingAxes' ? (
+              <ArticulatingAxesStep
+                loading={loadingSuggestions}
+                onGenerate={() => loadSuggestions(currentStep)}
+                onSelect={handleSelect}
+                suggestions={suggestions}
+              />
+            ) : currentStep.id === 'graduationProfile' ? (
+              <GraduationProfileStep context={aiContext} onSelect={handleSelect} />
+            ) : suggestions.length === 0 && currentStep.id === sequenceStep.id && plannerDraft.sequences.length > 0 ? (
+              <SequenceDecision
+                count={plannerDraft.sequences.length}
+                generating={loadingSuggestions}
+                onAdd={() => loadSuggestions(sequenceStep)}
+                onFinish={handleFinish}
+                saving={saving}
+              />
+            ) : currentStep.id === sequenceStep.id ? (
+              <SequenceSuggestionCards
+                loading={loadingSuggestions}
+                onRegenerate={() => loadSuggestions(currentStep)}
+                onSelect={handleSelect}
+                suggestions={suggestions}
+              />
+            ) : (
+              <SuggestionCards
+                loading={loadingSuggestions}
+                onRegenerate={() => loadSuggestions(currentStep)}
+                onSelect={handleSelect}
+                suggestions={suggestions}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
@@ -247,7 +296,7 @@ function buildAiContext({ baseValues, catalogs, plannerDraft }) {
 
 function WizardProgress({ currentStepIndex }) {
   return (
-    <div className="grid gap-2 md:grid-cols-5">
+    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0">
       {allWizardSteps.map((step, index) => {
         const done = index < currentStepIndex
         const current = index === currentStepIndex
@@ -255,16 +304,25 @@ function WizardProgress({ currentStepIndex }) {
         return (
           <div
             key={step.id}
-            className={`rounded-md border px-3 py-2 text-xs font-semibold ${
+            className={`relative min-w-40 overflow-hidden rounded-md border px-3 py-2.5 text-xs font-semibold shadow-sm sm:min-w-0 ${
               done
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                ? 'border-emerald-300/60 bg-emerald-300/15 text-emerald-100'
                 : current
-                  ? 'border-emerald-700 bg-white text-emerald-800'
-                  : 'border-stone-200 bg-white text-stone-500'
+                  ? 'border-cyan-300 bg-white text-emerald-800 shadow-cyan-500/20'
+                  : 'border-white/10 bg-white/5 text-cyan-50/55'
             }`}
           >
-            {done && <CheckCircle2 className="mb-1" size={14} />}
-            {step.label}
+            {current && <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-cyan-400 to-emerald-400" />}
+            <span className="flex items-center gap-2">
+              <span
+                className={`grid size-5 shrink-0 place-items-center rounded-full text-[10px] ${
+                  done ? 'bg-emerald-300 text-emerald-950' : current ? 'bg-emerald-700 text-white' : 'bg-white/10 text-cyan-50/60'
+                }`}
+              >
+                {done ? <CheckCircle2 size={12} /> : index + 1}
+              </span>
+              <span className="truncate">{step.label}</span>
+            </span>
           </div>
         )
       })}
@@ -282,20 +340,24 @@ function FormativePurposesStep({ loading, onGenerate, onSelect, suggestions }) {
 
   if (mode === 'ai') {
     return (
-      <CatalogOrAiShell mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
-        <SuggestionCards loading={loading} onRegenerate={onGenerate} onSelect={onSelect} suggestions={suggestions} />
+      <CatalogOrAiShell loading={loading} mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
+        <SuggestionCards loading={loading} onRegenerate={onGenerate} onSelect={onSelect} showToolbar={false} suggestions={suggestions} />
       </CatalogOrAiShell>
     )
   }
 
   return (
-    <CatalogOrAiShell mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
-      <section className="rounded-md border border-stone-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-3">
+    <CatalogOrAiShell loading={loading} mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
+      <section className="rounded-md border border-white/70 bg-white/95 p-4 shadow-xl shadow-cyan-950/10 sm:p-5">
+        <div className="grid gap-3 lg:grid-cols-2">
           {formativeFieldPurposesCatalog.map((purpose, index) => (
             <label
               key={purpose}
-              className="flex items-start gap-3 rounded-md border border-stone-200 px-3 py-3 text-sm leading-6 text-stone-700"
+              className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 text-sm leading-6 transition ${
+                selected.includes(purpose)
+                  ? 'border-emerald-300 bg-emerald-50 text-stone-800 shadow-sm'
+                  : 'border-stone-200 bg-white text-stone-700 hover:border-cyan-200 hover:bg-cyan-50/40'
+              }`}
             >
               <input
                 type="checkbox"
@@ -334,20 +396,24 @@ function ArticulatingAxesStep({ loading, onGenerate, onSelect, suggestions }) {
 
   if (mode === 'ai') {
     return (
-      <CatalogOrAiShell mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
-        <AxesAiCards loading={loading} onRegenerate={onGenerate} onSelect={onSelect} suggestions={suggestions} />
+      <CatalogOrAiShell loading={loading} mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
+        <AxesAiCards loading={loading} onSelect={onSelect} suggestions={suggestions} />
       </CatalogOrAiShell>
     )
   }
 
   return (
-    <CatalogOrAiShell mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
-      <section className="rounded-md border border-stone-200 bg-white p-5 shadow-sm">
+    <CatalogOrAiShell loading={loading} mode={mode} onGenerate={onGenerate} onModeChange={setMode}>
+      <section className="rounded-md border border-white/70 bg-white/95 p-4 shadow-xl shadow-cyan-950/10 sm:p-5">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {availableAxes.map((axis) => (
             <label
               key={axis}
-              className="flex min-h-12 items-center gap-2 rounded-md border border-stone-200 px-3 py-2 text-sm text-stone-700"
+              className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                selected.includes(axis)
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-900 shadow-sm'
+                  : 'border-stone-200 bg-white text-stone-700 hover:border-cyan-200 hover:bg-cyan-50/40'
+              }`}
             >
               <input
                 type="checkbox"
@@ -370,53 +436,59 @@ function ArticulatingAxesStep({ loading, onGenerate, onSelect, suggestions }) {
   )
 }
 
-function CatalogOrAiShell({ children, mode, onGenerate, onModeChange }) {
+function CatalogOrAiShell({ children, loading, mode, onGenerate, onModeChange }) {
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant={mode === 'catalog' ? 'primary' : 'secondary'} size="sm" onClick={() => onModeChange('catalog')}>
-          Elegir existentes
-        </Button>
-        <Button
+      <div className="flex flex-col gap-3 rounded-md border border-white/10 bg-white/10 p-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-medium text-cyan-50/80">
+          {mode === 'catalog' ? 'Selecciona opciones existentes del catálogo.' : 'Revisa y edita las propuestas generadas.'}
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+          <Button type="button" variant={mode === 'catalog' ? 'primary' : 'secondary'} size="sm" onClick={() => onModeChange('catalog')}>
+            Elegir existentes
+          </Button>
+          <Button
           type="button"
           variant={mode === 'ai' ? 'primary' : 'secondary'}
           size="sm"
+          disabled={loading}
           onClick={() => {
             onModeChange('ai')
             onGenerate()
-          }}
-        >
-          <Sparkles size={15} />
-          Proponer con IA
-        </Button>
+            }}
+          >
+            <Sparkles size={15} />
+            {loading ? 'Generando...' : mode === 'ai' ? 'Generar otras' : 'Proponer con IA'}
+          </Button>
+        </div>
       </div>
       {children}
     </div>
   )
 }
 
-function AxesAiCards({ loading, onRegenerate, onSelect, suggestions }) {
+function AxesAiCards({ loading, onSelect, suggestions }) {
+  const cardsRef = useGsapReveal({ selector: '[data-axis-card]', stagger: 0.09, y: 16 })
+
   if (loading) {
-    return (
-      <div className="rounded-md border border-stone-200 bg-white p-6 text-sm text-stone-600 shadow-sm">
-        Generando propuestas...
-      </div>
-    )
+    return <AiThinkingState />
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button type="button" variant="secondary" size="sm" onClick={onRegenerate}>
-          <RefreshCw size={15} />
-          Generar otras opciones
-        </Button>
-      </div>
-
+    <div ref={cardsRef} className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
         {suggestions.map((suggestion, index) => (
-          <article key={`${suggestion.title}-${index}`} className="rounded-md border border-stone-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-stone-950">{suggestion.title}</h3>
+          <article
+            data-axis-card
+            key={`${suggestion.title}-${index}`}
+            className="group rounded-md border border-white/70 bg-white/95 p-4 shadow-xl shadow-cyan-950/10 transition hover:-translate-y-1 hover:border-cyan-200 hover:bg-white"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-cyan-50 text-xs font-bold text-cyan-800 ring-1 ring-cyan-100">
+                {index + 1}
+              </span>
+              <h3 className="min-w-0 text-sm font-semibold leading-5 text-stone-950">{suggestion.title}</h3>
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {suggestion.value.map((axis) => (
                 <span key={axis} className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
@@ -439,7 +511,14 @@ function GraduationProfileStep({ context, onSelect }) {
   const recommendedProfiles = useMemo(() => getRecommendedGraduationProfiles(context), [context])
 
   return (
-    <section className="rounded-md border border-stone-200 bg-white p-5 shadow-sm">
+    <section className="rounded-md border border-white/70 bg-white/95 p-4 shadow-xl shadow-cyan-950/10 sm:p-5">
+      <div className="mb-4 flex flex-col gap-2 border-b border-stone-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-stone-950">Selecciona un perfil de egreso</h3>
+          <p className="mt-1 text-sm text-stone-500">Los destacados son sugerencias locales según el contexto capturado.</p>
+        </div>
+      </div>
+
       <div className="grid gap-3">
         {graduationProfilesCatalog.map((profile, index) => {
           const recommended = recommendedProfiles.includes(profile.id)
@@ -448,7 +527,7 @@ function GraduationProfileStep({ context, onSelect }) {
             <article
               key={profile.id}
               className={`rounded-md border p-4 ${
-                recommended ? 'border-emerald-300 bg-emerald-50/70' : 'border-stone-200 bg-white'
+                recommended ? 'border-emerald-300 bg-emerald-50/80 shadow-sm' : 'border-stone-200 bg-white hover:border-cyan-200'
               }`}
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -504,20 +583,24 @@ function getRecommendedGraduationProfiles(context) {
   return scoredProfiles.slice(0, 3).map((profile) => profile.id)
 }
 
-function SequenceDecision({ count, onAdd, onFinish, saving }) {
+function SequenceDecision({ count, generating, onAdd, onFinish, saving }) {
   return (
-    <section className="rounded-md border border-stone-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-stone-950">Secuencia agregada</h2>
-      <p className="mt-2 text-sm leading-6 text-stone-600">
-        La planeación tiene {count} secuencia{count === 1 ? '' : 's'} didáctica{count === 1 ? '' : 's'}.
-      </p>
-      <div className="mt-5 flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" onClick={onAdd}>
-          Agregar otra secuencia
-        </Button>
-        <Button type="button" onClick={onFinish} disabled={saving}>
-          {saving ? 'Guardando...' : 'Finalizar y guardar'}
-        </Button>
+    <section className="overflow-hidden rounded-md border border-white/70 bg-white/95 shadow-xl shadow-cyan-950/10">
+      <div className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div>
+          <h2 className="text-lg font-semibold text-stone-950">Secuencia agregada</h2>
+          <p className="mt-2 text-sm leading-6 text-stone-600">
+            La planeación tiene {count} secuencia{count === 1 ? '' : 's'} didáctica{count === 1 ? '' : 's'}.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <Button type="button" variant="secondary" onClick={onAdd} disabled={generating}>
+            {generating ? 'Generando...' : 'Agregar otra secuencia'}
+          </Button>
+          <Button type="button" onClick={onFinish} disabled={saving}>
+            {saving ? 'Guardando...' : 'Finalizar y guardar'}
+          </Button>
+        </div>
       </div>
     </section>
   )

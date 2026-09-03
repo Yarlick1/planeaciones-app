@@ -4,16 +4,15 @@ import { Button } from '../../../components/ui/Button'
 import { FormField } from '../../../components/ui/FormField'
 import { Input } from '../../../components/ui/Input'
 import { Textarea } from '../../../components/ui/Textarea'
+import { useGsapReveal } from '../../../hooks/useGsapReveal'
+import { AiThinkingState } from './AiThinkingState'
 
-export function SequenceSuggestionCards({ loading, onRegenerate, onSelect, suggestions }) {
+export function SequenceSuggestionCards({ loading, onRegenerate, onSelect, showToolbar = true, suggestions }) {
   const [drafts, setDrafts] = useState([])
+  const cardsRef = useGsapReveal({ selector: '[data-sequence-card]', stagger: 0.08, y: 18 })
 
   if (loading) {
-    return (
-      <div className="rounded-md border border-stone-200 bg-white p-6 text-sm text-stone-600 shadow-sm">
-        Generando secuencias...
-      </div>
-    )
+    return <AiThinkingState label="Diseñando secuencias..." />
   }
 
   function updateDraft(index, field, value) {
@@ -26,27 +25,39 @@ export function SequenceSuggestionCards({ loading, onRegenerate, onSelect, sugge
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button type="button" variant="secondary" size="sm" onClick={onRegenerate}>
-          <RefreshCw size={15} />
-          Generar otras opciones
-        </Button>
-      </div>
+    <div ref={cardsRef} className="space-y-4">
+      {showToolbar && (
+        <div className="flex justify-end">
+          <Button type="button" variant="secondary" size="sm" onClick={onRegenerate}>
+            <RefreshCw size={15} />
+            Generar otras opciones
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-3">
         {suggestions.map((suggestion, index) => {
           const draft = drafts[index]?.title === suggestion.title ? drafts[index].value : suggestion.value
 
           return (
-            <article key={`${suggestion.title}-${index}`} className="rounded-md border border-stone-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-stone-950">{suggestion.title}</h3>
+            <article
+              data-sequence-card
+              key={`${suggestion.title}-${index}`}
+              className="group flex flex-col rounded-md border border-white/70 bg-white/95 p-4 shadow-xl shadow-cyan-950/10 transition hover:-translate-y-1 hover:border-cyan-200 hover:bg-white"
+            >
+              <div className="flex items-start gap-3">
+                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-cyan-50 text-xs font-bold text-cyan-800 ring-1 ring-cyan-100">
+                  {index + 1}
+                </span>
+                <h3 className="min-w-0 text-sm font-semibold leading-5 text-stone-950">{suggestion.title}</h3>
+              </div>
 
-              <div className="mt-3 grid gap-3">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="mt-4 grid flex-1 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <FormField label="Inicio">
                     <Input
                       type="date"
+                      className="h-10 bg-stone-50"
                       value={draft.startDate}
                       onChange={(event) => updateDraft(index, 'startDate', event.target.value)}
                     />
@@ -54,6 +65,7 @@ export function SequenceSuggestionCards({ loading, onRegenerate, onSelect, sugge
                   <FormField label="Fin">
                     <Input
                       type="date"
+                      className="h-10 bg-stone-50"
                       value={draft.endDate}
                       onChange={(event) => updateDraft(index, 'endDate', event.target.value)}
                     />
@@ -82,7 +94,7 @@ export function SequenceSuggestionCards({ loading, onRegenerate, onSelect, sugge
                 <EditableSequenceField label="Observaciones" value={draft.observations} rows={3} onChange={(value) => updateDraft(index, 'observations', value)} />
               </div>
 
-              <Button type="button" className="mt-4 w-full" onClick={() => onSelect(draft)}>
+              <Button type="button" className="mt-4 w-full shadow-lg shadow-emerald-950/10" onClick={() => onSelect(draft)}>
                 <CheckCircle2 size={16} />
                 Usar secuencia
               </Button>
@@ -97,7 +109,12 @@ export function SequenceSuggestionCards({ loading, onRegenerate, onSelect, sugge
 function EditableSequenceField({ label, onChange, rows = 4, value }) {
   return (
     <FormField label={label}>
-      <Textarea rows={rows} value={value} onChange={(event) => onChange(event.target.value)} />
+      <Textarea
+        rows={rows}
+        className="min-h-24 resize-none border-stone-200 bg-stone-50/80 leading-6 focus:bg-white"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </FormField>
   )
 }

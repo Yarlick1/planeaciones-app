@@ -64,7 +64,6 @@ Deno.serve(async (request) => {
           content: buildPrompt(step, context),
         },
       ],
-      max_output_tokens: getMaxOutputTokens(step),
       text: {
         format: {
           type: 'json_schema',
@@ -159,7 +158,9 @@ function buildSuggestionSchema(step: string) {
       required: SEQUENCE_FIELDS,
     }
   } else {
-    valueSchema = { type: 'string' }
+    valueSchema = {
+      type: 'string',
+    }
   }
 
   return {
@@ -183,13 +184,6 @@ function buildSuggestionSchema(step: string) {
     },
     required: ['suggestions'],
   }
-}
-
-function getMaxOutputTokens(step: string) {
-  if (step === 'didacticSequence') return 1600
-  if (step === 'articulatingAxes') return 650
-  if (step === 'formativeFieldPurposes') return 900
-  return 700
 }
 
 function extractOutputText(data: Record<string, unknown>) {
@@ -293,13 +287,24 @@ function validateSuggestion(step: string, suggestion: unknown, index: number) {
   }
 
   if (TEXT_STEPS.has(step)) {
-    if (typeof candidate.value !== 'string' || !candidate.value.trim()) {
+    const textValue = unwrapTextContent(candidate.value, step)
+
+    if (typeof textValue !== 'string' || !textValue.trim()) {
       throw createHttpError(`La sugerencia ${index + 1} debe ser texto.`, 'invalid_ai_text_suggestion')
     }
 
+    const cleanedValue = cleanTextForStep(textValue, step)
+
+    if (!cleanedValue) {
+      throw createHttpError(
+        `La sugerencia ${index + 1} no corresponde al campo solicitado.`,
+        'invalid_ai_step_content',
+      )
+    }
+
     return {
-      title: candidate.title.trim(),
-      value: candidate.value.trim(),
+      title: cleanSuggestionTitle(candidate.title, index),
+      value: cleanedValue,
     }
   }
 
@@ -315,14 +320,14 @@ function validateSuggestion(step: string, suggestion: unknown, index: number) {
     }
 
     return {
-      title: candidate.title.trim(),
+      title: cleanSuggestionTitle(candidate.title, index),
       value: axes,
     }
   }
 
   if (step === 'didacticSequence') {
     return {
-      title: candidate.title.trim(),
+      title: cleanSuggestionTitle(candidate.title, index),
       value: validateSequence(candidate.value, index),
     }
   }
@@ -355,20 +360,179 @@ function createHttpError(message: string, code = 'edge_function_error', status =
   return Object.assign(new Error(message), { code, status })
 }
 
+function unwrapTextContent(value: unknown, step: string) {
+  if (typeof value !== 'string') return value
+
+  const cleanValue = stripFieldLabels(value.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim(), step)
+
+  if (!cleanValue.startsWith('{') || !cleanValue.endsWith('}')) {
+    return cleanValue
+  }
+
+  try {
+    const parsed = JSON.parse(cleanValue)
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return cleanValue
+    }
+
+    const firstStringValue = Object.values(parsed).find((item) => typeof item === 'string' && item.trim())
+    return typeof firstStringValue === 'string' ? stripFieldLabels(firstStringValue, step) : cleanValue
+  } catch {
+    return cleanValue
+  }
+}
+
+function cleanSuggestionTitle(title: string, index: number) {
+  const normalizedTitle = title.replace(/[{}"`]/g, '').trim()
+  const technicalTitlePattern =
+    /^(formativeFieldPurposes|purpose|generalProblem|graduationProfile|finalidades del campo formativo|prop[oó]sito|problem[aá]tica general|perfil de egreso)\s*:?\s*$/i
+
+  if (technicalTitlePattern.test(normalizedTitle)) {
+    return `Opcion ${index + 1}`
+  }
+
+  return normalizedTitle || `Opcion ${index + 1}`
+}
+
+function stripFieldLabels(value: string, step: string) {
+  const fieldLabelPattern =
+    /\b(formativeFieldPurposes|purpose|generalProblem|graduationProfile|finalidades del campo formativo|prop[oó]sito|problem[aá]tica general|perfil de egreso)\b\s*:\s*/gi
+  const matches = [...value.matchAll(fieldLabelPattern)]
+
+  if (matches.length === 0) return value
+
+  const targetMatch = matches.find((match) => isStepLabel(match[1], step)) ?? matches[0]
+  const nextMatch = matches.find((match) => (match.index ?? 0) > (targetMatch.index ?? 0))
+  const start = (targetMatch.index ?? 0) + targetMatch[0].length
+  const end = nextMatch?.index ?? value.length
+
+  return value.slice(start, end).trim()
+}
+
+function cleanTextForStep(value: string, step: string) {
+  const withoutLabels = stripFieldLabels(value, step)
+  const withoutForeignSections = trimForeignSections(withoutLabels, step)
+  const normalized = withoutForeignSections.replace(/\s+/g, ' ').trim()
+
+  if (step === 'purpose' && looksLikeOnlyAxes(normalized)) {
+    return ''
+  }
+
+  return normalized
+}
+
+function trimForeignSections(value: string, step: string) {
+  const boundaryPatterns: Record<string, RegExp[]> = {
+    formativeFieldPurposes: [
+      /\b(prop[oó]sito|purpose)\s*:/i,
+      /\b(ejes articuladores|articulatingAxes)\s*:/i,
+      /\b(perfil de egreso|graduationProfile)\s*:/i,
+      /\b(secuencia(?: did[aá]ctica)?|inicio|desarrollo|cierre|recursos|evaluaci[oó]n|observaciones)\s*:/i,
+      /\b(producto esperado|evidencia esperada)\s*:/i,
+      /\bLos estudiantes\s+(investigar[aá]n|elaborar[aá]n|realizar[aá]n|aplicar[aá]n|documentar[aá]n)\b/i,
+      /\bEl alumnado\s+(investigar[aá]|elaborar[aá]|realizar[aá]|aplicar[aá]|documentar[aá])\b/i,
+    ],
+    purpose: [
+      /\b(ejes articuladores|articulatingAxes)\s*:/i,
+      /\b(perfil de egreso|graduationProfile)\s*:/i,
+      /\b(secuencia(?: did[aá]ctica)?|inicio|desarrollo|cierre|recursos|evaluaci[oó]n|observaciones)\s*:/i,
+    ],
+  }
+
+  const matches = (boundaryPatterns[step] ?? [])
+    .map((pattern) => value.search(pattern))
+    .filter((position) => position > 0)
+
+  if (matches.length === 0) return value
+
+  return value.slice(0, Math.min(...matches)).trim()
+}
+
+function looksLikeOnlyAxes(value: string) {
+  const normalizedValue = normalizeAxisText(value)
+
+  if (!normalizedValue) return false
+
+  const selectedAxes = value
+    .split(',')
+    .map((axis) => normalizeAxisText(axis))
+    .filter(Boolean)
+
+  return (
+    selectedAxes.length > 0 &&
+    selectedAxes.every((axis) => ARTICULATING_AXES.some((knownAxis) => normalizeAxisText(knownAxis) === axis))
+  )
+}
+
+function normalizeAxisText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.$/, '')
+    .trim()
+}
+
+function isStepLabel(label: string, step: string) {
+  const normalizedLabel = label.toLowerCase()
+
+  if (step === 'formativeFieldPurposes') {
+    return normalizedLabel === 'formativefieldpurposes' || normalizedLabel.includes('finalidades')
+  }
+
+  if (step === 'purpose') {
+    return normalizedLabel === 'purpose' || normalizedLabel.includes('prop')
+  }
+
+  return false
+}
+
 function buildPrompt(step: string, context: Record<string, unknown>) {
   return `
-Genera exactamente 3 opciones para "${step}" en español.
+Genera exactamente 3 opciones en español para el apartado "${getStepName(step)}".
 
-Datos: materia=${context.subjectName}; grupo=${context.groupLabel}; fechas=${context.generalStartDate} a ${context.generalEndDate}; contenido=${context.content}; PDA=${context.pda}; problematica=${context.generalProblem}; finalidades=${context.formativeFieldPurposes || 'pendientes'}; proposito=${context.purpose || 'pendiente'}; ejes=${Array.isArray(context.articulatingAxes) ? context.articulatingAxes.join(', ') : 'pendientes'}.
+Datos: materia=${context.subjectName}; grupo=${context.groupLabel}; fechas=${context.generalStartDate} a ${context.generalEndDate}; contenido=${context.content}; PDA=${context.pda}; problematica=${context.generalProblem}; finalidades=${context.formativeFieldPurposes || 'pendientes'}; proposito=${context.purpose || 'pendiente'}; ejes=${Array.isArray(context.articulatingAxes) ? context.articulatingAxes.join(', ') : 'pendiente'}.
 
-Calidad: cada opcion debe sonar lista para una planeacion real, con verbo pedagogico, relacion clara con el PDA, conexion con la problematica y producto/evidencia cuando aplique. No uses frases como "fortalecer aprendizajes" sin decir como.
+Calidad: cada opcion debe sonar lista para una planeacion real, con verbo pedagogico observable, relacion clara con el PDA, conexion con la problematica y producto/evidencia cuando aplique. No uses frases vagas como "fortalecer aprendizajes" sin decir mediante que accion.
 
 Formato:
-- "formativeFieldPurposes": value con 2 oraciones; vincula campo formativo, contexto del grupo y sentido comunitario.
-- "purpose": value con 1 oracion robusta; incluye accion del alumnado, contenido, PDA y evidencia esperada.
-- "articulatingAxes": value con 2 a 3 ejes tomados solo de esta lista: ${ARTICULATING_AXES.join(', ')}. El title debe explicar el enfoque, por ejemplo "Convivencia y pensamiento critico".
-- "didacticSequence": value es objeto completo; cada momento debe incluir actividad docente, actividad del alumnado y evidencia breve.
+- Responde solo el apartado solicitado: "${getStepName(step)}". No incluyas contenido de otros apartados.
+- Cada title debe ser un nombre breve y natural, nunca el id del campo.
+- Cada value debe iniciar directamente con la redaccion pedagogica, sin prefijos como "formativeFieldPurposes:", "purpose:", "valor:" o similares.
+- ${getStepGuidance(step)}
 
+Reglas estrictas:
+- No escribas llaves, nombres de campos, markdown ni JSON dentro de ningun title o value.
+- No anticipes apartados posteriores. No agregues ejes, perfil de egreso, secuencia, recursos, evaluacion ni observaciones salvo cuando el apartado solicitado sea precisamente "Secuencia didactica".
+- El JSON lo controla el esquema; el contenido visible debe ser texto natural para el docente.
 Sin explicaciones fuera del JSON.
 `
+}
+
+function getStepName(step: string) {
+  const names: Record<string, string> = {
+    formativeFieldPurposes: 'Finalidades del campo formativo',
+    purpose: 'Proposito',
+    articulatingAxes: 'Ejes articuladores',
+    didacticSequence: 'Secuencia didactica',
+  }
+
+  return names[step] || step
+}
+
+function getStepGuidance(step: string) {
+  if (step === 'formativeFieldPurposes') {
+    return 'Para Finalidades del campo formativo: value debe tener 2 oraciones sinteticas. Redacta el sentido formativo del campo, conectado con contenido, PDA, grupo y problematica. No escribas acciones especificas del alumnado, productos, evidencias, ejes, recursos, evaluacion ni secuencia.'
+  }
+
+  if (step === 'purpose') {
+    return 'Para Proposito: value debe tener 1 oracion robusta de 35 a 60 palabras. Debe iniciar con una meta de aprendizaje del periodo e incluir accion del alumnado, contenido, PDA y evidencia esperada. No menciones ejes articuladores, perfil de egreso, recursos, evaluacion ni momentos de secuencia.'
+  }
+
+  if (step === 'articulatingAxes') {
+    return `Para Ejes articuladores: value debe ser un arreglo con 2 a 3 ejes tomados solo de esta lista: ${ARTICULATING_AXES.join(', ')}. El title debe explicar el enfoque, por ejemplo "Convivencia y pensamiento critico".`
+  }
+
+  return 'Para Secuencia didactica: value debe ser un objeto completo; cada momento debe tener 1 o 2 oraciones e incluir actividad docente, actividad del alumnado y evidencia breve. Recursos, evaluacion y observaciones deben ser concretos, no listas largas.'
 }

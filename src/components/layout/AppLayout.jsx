@@ -1,5 +1,5 @@
 import { BookOpenCheck, Download, LayoutDashboard, LogOut, UserRound } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { NetworkStatusBanner } from '../common/NetworkStatusBanner'
 import { useAuth } from '../../features/auth/hooks/useAuth'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
@@ -14,10 +14,12 @@ const navItems = [
 export function AppLayout() {
   const { user } = useAuth()
   const { canInstall, install } = usePwaInstall()
+  const location = useLocation()
+  const isAiMode = location.pathname === '/planeaciones/asistente'
 
   return (
-    <div className="min-h-svh bg-stone-50 text-stone-950">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-stone-200 bg-white lg:block">
+    <div className={cn('min-h-svh text-stone-950', isAiMode ? 'bg-stone-950' : 'bg-stone-50')}>
+      <aside className={cn('fixed inset-y-0 left-0 hidden w-72 border-r border-stone-200 bg-white lg:block', isAiMode && 'lg:hidden')}>
         <div className="flex h-full flex-col">
           <div className="border-b border-stone-200 px-6 py-5">
             <div className="flex items-center gap-3">
@@ -73,8 +75,8 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+      <div className={cn(!isAiMode && 'lg:pl-72')}>
+        <header className={cn('sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden', isAiMode && 'hidden')}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BookOpenCheck size={22} className="text-emerald-700" />
@@ -112,7 +114,7 @@ export function AppLayout() {
 
         <NetworkStatusBanner />
 
-        <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className={cn('mx-auto w-full', isAiMode ? 'max-w-none p-0' : 'max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8')}>
           <Outlet />
         </main>
       </div>

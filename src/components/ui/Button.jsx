@@ -1,3 +1,5 @@
+import gsap from 'gsap'
+import { useRef } from 'react'
 import { cn } from '../../lib/utils'
 
 const variants = {
@@ -16,13 +18,26 @@ const sizes = {
 export function Button({
   children,
   className,
+  onMouseDown,
+  onMouseEnter,
+  onMouseLeave,
+  onMouseUp,
   size = 'md',
   type = 'button',
   variant = 'primary',
   ...props
 }) {
+  const buttonRef = useRef(null)
+
+  function animateButton(event, animation, callback) {
+    callback?.(event)
+    if (props.disabled || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    gsap.to(buttonRef.current, { duration: 0.18, ease: 'power2.out', ...animation })
+  }
+
   return (
     <button
+      ref={buttonRef}
       type={type}
       className={cn(
         'inline-flex items-center justify-center gap-2 rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-60',
@@ -30,6 +45,10 @@ export function Button({
         sizes[size],
         className,
       )}
+      onMouseDown={(event) => animateButton(event, { scale: 0.98 }, onMouseDown)}
+      onMouseEnter={(event) => animateButton(event, { y: -1 }, onMouseEnter)}
+      onMouseLeave={(event) => animateButton(event, { scale: 1, y: 0 }, onMouseLeave)}
+      onMouseUp={(event) => animateButton(event, { scale: 1, y: -1 }, onMouseUp)}
       {...props}
     >
       {children}
